@@ -1,0 +1,14 @@
+{
+    "files": {
+        "test.ejs": {
+            "id": "test.ejs",
+            "name": "Test File",
+            "template": "test.ejs",
+            "output": "test.txt",
+            "input": {
+                "param1": "string",
+                "param2": ["option1", "option2", "option3"]
+            }
+        }
+    }
+}
