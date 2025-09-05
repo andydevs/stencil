@@ -1,95 +1,42 @@
 import * as vscode from 'vscode'
-import ejs from 'ejs'
+import { createStencilFile } from './file'
 
-async function getStencil() {
-    // Get workspace directory
-    let workspaceDirs = vscode.workspace.workspaceFolders
-    if (workspaceDirs === undefined) {
-        throw new Error('No workspace open!')
-    }
-    let workspaceDir = workspaceDirs[0]
-
-    // Get stencil directory
-    let stencilDir = vscode.Uri.joinPath(workspaceDir.uri, '.stencil')
+/**
+ * Try to execute the given function async. If an error occurred,
+ * display it as a message to user
+ *
+ * @param commandFunc function being executed on the given command
+ */
+async function asyncTryCommandFunction(commandFunc: () => Promise<void>): Promise<void> {
     try {
-        await vscode.workspace.fs.stat(stencilDir)
-    } catch {
-        throw new Error('.stencil directory not found in workspace!')
-    }
-
-    // Get config file
-    let configFile = vscode.Uri.joinPath(stencilDir, 'config.json')
-    try {
-        await vscode.workspace.fs.stat(configFile)
-    } catch {
-        throw new Error('config.json not found in stencil directory!')
-    }
-
-    // Decode config file
-    let decoder = new TextDecoder('utf-8')
-    let configData = await vscode.workspace.fs.readFile(configFile)
-    let config = JSON.parse(decoder.decode(configData))
-
-    // Return stencil
-    return {
-        uri: stencilDir,
-        workspace: workspaceDir.uri,
-        config,
+        console.log('Try executing function with await call')
+        await commandFunc()
+    } catch (error) {
+        console.error('Error occured:', error)
+        let errorMessage = `${error}`
+        console.log('Display message to user:', errorMessage)
+        vscode.window.showErrorMessage(errorMessage)
     }
 }
 
-async function createStencilFile() {
-    let stencil = await getStencil()
-
-    // Get file from user
-    let files = Object.entries(stencil.config.files).map(([key, file]: [string, any]) => ({ label: file.name, key }))
-    let fileItem = await vscode.window.showQuickPick(files)
-    if (fileItem === undefined) {
-        throw new Error(`File input is undefined!`)
-    }
-    let file = stencil.config.files[fileItem.key]
-
-    // Get inputs
-    let inputs = Object.entries(file.input)
-    let values: { [k: string]: any } = {}
-    for (let [key, input] of inputs) {
-        let value = undefined
-        if (input === 'string') {
-            value = await vscode.window.showInputBox({ placeHolder: `Value for ${key}` })
-        } else if (Array.isArray(input)) {
-            value = await vscode.window.showQuickPick(input, { placeHolder: `Value for ${key}` })
-        }
-        values[key] = value
-    }
-
-    // Read file template
-    let decoder = new TextDecoder('utf-8')
-    let fileUri = vscode.Uri.joinPath(stencil.uri, 'templates', file.template)
-    let fileData = await vscode.workspace.fs.readFile(fileUri)
-    let template = ejs.compile(decoder.decode(fileData))
-
-    // Get output
-    let output = template(values)
-
-    // Write file to workspace
-    let encoder = new TextEncoder()
-    let outputUri = vscode.Uri.joinPath(stencil.workspace, file.output)
-    let outputData = encoder.encode(output)
-    await vscode.workspace.fs.writeFile(outputUri, outputData)
-}
-
+/**
+ * Activate VSCode extension
+ *
+ * @param context VSCode extension context
+ */
 export function activate(context: vscode.ExtensionContext) {
-    console.log('Congratulations, your extension "stencil" is now active!')
-
+    // Register create file command
     const createFile = vscode.commands.registerCommand('stencil.createFile', async () => {
-        try {
-            await createStencilFile()
-        } catch (error) {
-            vscode.window.showErrorMessage(`${error}`)
-        }
+        console.log('stencil.createFile command started')
+        asyncTryCommandFunction(createStencilFile)
     })
 
+    // Add command subscriptions
     context.subscriptions.push(createFile)
+    console.log('Extension "stencil" is now active!')
 }
 
+/**
+ * Deactivate VSCode extension
+ */
 export function deactivate() {}
